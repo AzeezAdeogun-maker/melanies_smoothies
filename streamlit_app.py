@@ -1,6 +1,12 @@
 # Import python packages
 import streamlit as st
-from snowflake.snowpark.functions import col
+
+# Try importing Snowflake functions safely
+try:
+    from snowflake.snowpark.functions import col
+    SNOWFLAKE_AVAILABLE = True
+except ModuleNotFoundError:
+    SNOWFLAKE_AVAILABLE = False
 
 # ----------------------------
 # App UI
@@ -18,20 +24,35 @@ st.write("The name on your Smoothie will be:", name_on_order)
 # Snowflake session
 # ----------------------------
 cnx = st.connection("snowflake")
-session= cnx.session()
+session = cnx.session()
+
 # ----------------------------
 # Fruit options
 # ----------------------------
-fruit_df = (
-    session
-    .table("SMOOTHIES.PUBLIC.FRUIT_OPTIONS")
-    .select(col("FRUIT_NAME"))
-)
+if SNOWFLAKE_AVAILABLE:
+    fruit_df = (
+        session
+        .table("SMOOTHIES.PUBLIC.FRUIT_OPTIONS")
+        .select(col("FRUIT_NAME"))
+    )
+
+    # Convert to Python list for Streamlit
+    fruit_list = [row[0] for row in fruit_df.collect()]
+else:
+    st.warning("Snowflake Snowpark is not installed. Using fallback fruit list.")
+    fruit_list = [
+        "Strawberry",
+        "Banana",
+        "Mango",
+        "Blueberry",
+        "Pineapple",
+        "Peach"
+    ]
 
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
-    fruit_df
-    ,max_selections=5
+    fruit_list,
+    max_selections=5
 )
 
 # ----------------------------
@@ -58,6 +79,5 @@ if time_to_insert:
 
         session.sql(my_insert_stmt).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
-
 
 
