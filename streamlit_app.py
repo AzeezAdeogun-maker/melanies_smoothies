@@ -30,7 +30,7 @@ fruit_df = (
     .select(col("FRUIT_NAME"), col("SEARCH_ON"))
 )
 
-# Convert Snowpark DataFrame to Pandas so we can look up SEARCH_ON for each fruit chosen
+# Convert Snowpark DataFrame to Pandas so we can use .loc
 pd_df = fruit_df.to_pandas()
 
 ingredients_list = st.multiselect(
@@ -56,30 +56,25 @@ if time_to_insert:
         for fruit_chosen in ingredients_list:
             ingredients_string += fruit_chosen + " "
 
-            # Get the SEARCH_ON value for the chosen fruit
-            search_on = pd_df.loc[pd_df["FRUIT_NAME"] == fruit_chosen, "SEARCH_ON"].iloc[0]
+            # Look up SEARCH_ON value
+            search_on = pd_df.loc[
+                pd_df["FRUIT_NAME"] == fruit_chosen,
+                "SEARCH_ON"
+            ].iloc[0]
+
+            # st.write('The search value for ', fruit_chosen, ' is ', search_on, '.')
 
             st.subheader(fruit_chosen + " Nutrition Information")
 
-            # Call the API using SEARCH_ON (not the GUI label)
-            try:
-                smoothiefroot_response = requests.get(
-                    "https://my.smoothiefroot.com/api/fruit/" + str(search_on),
-                    timeout=10
-                )
+            # Use SEARCH_ON in API call
+            smoothiefroot_response = requests.get(
+                f"https://my.smoothiefroot.com/api/fruit/{search_on}"
+            )
 
-                if smoothiefroot_response.status_code == 200:
-                    st.dataframe(
-                        data=smoothiefroot_response.json(),
-                        use_container_width=True
-                    )
-                else:
-                    st.error(
-                        f"API request failed for {fruit_chosen} (SEARCH_ON={search_on}). "
-                        f"Status: {smoothiefroot_response.status_code}"
-                    )
-            except requests.RequestException as e:
-                st.error(f"API request error for {fruit_chosen} (SEARCH_ON={search_on}): {e}")
+            st.dataframe(
+                data=smoothiefroot_response.json(),
+                use_container_width=True
+            )
 
         # Insert into Snowflake
         my_insert_stmt = f"""
@@ -89,6 +84,7 @@ if time_to_insert:
 
         session.sql(my_insert_stmt).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+
 
         
 
